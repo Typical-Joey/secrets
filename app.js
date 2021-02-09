@@ -34,6 +34,27 @@ app.route("/")
 app.route("/login")
     .get(function (req, res) {
         res.render("login");
+    })
+
+    // User Login
+    .post(function (req, res) {
+        const email = req.body.email;
+        const password = req.body.password;
+
+        User.findOne({
+            email: email,
+            password: password
+        }, function (err, user) {
+            if (!err) {
+                if (user) {
+                    res.render("secrets");
+                } else {
+                    res.send("Username or Password was incorrect");
+                }
+            } else {
+                res.send(err);
+            }
+        });
     });
 
 ///// Register Route ////////////////////////////////////////
@@ -54,7 +75,7 @@ app.route("/register")
         newUser.save(function (err) {
             if (!err) {
                 console.log("Successfully added user");
-                res.redirect("/login");
+                res.render("secrets");
             } else {
                 console.log(err);
             }
