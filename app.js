@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const ejs = require("ejs");
 const bodyParser = require("body-parser");
@@ -24,9 +25,8 @@ const userSchema = new mongoose.Schema({
 });
 
 // Encrypt passwords
-const secret = "Thisisourlittlesecret.";
 userSchema.plugin(encrypt, {
-    secret: secret,
+    secret: process.env.SECRET,
     encryptedFields: ["password"]
 });
 
@@ -79,12 +79,21 @@ app.route("/register")
             email: email,
             password: password
         });
-        newUser.save(function (err) {
-            if (!err) {
-                console.log("Successfully added user");
-                res.render("secrets");
+        User.findOne({
+            email: newUser.email
+        }, function (err, foundUser) {
+            if (!err && !foundUser) {
+                newUser.save(function (err) {
+                    if (!err) {
+                        res.render("secrets");
+                    } else {
+                        res.send(err);
+                    }
+                });
+            } else if (!err && foundUser) {
+                res.send("User Already Exists");
             } else {
-                console.log(err);
+                res.send(err);
             }
         });
 
