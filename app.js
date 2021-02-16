@@ -3,7 +3,8 @@ const express = require("express");
 const ejs = require("ejs");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const md5 = require("md5"); // Hash module
+const bcrypt = require("bcrypt"); // Hash module
+const saltRounds = 10;
 
 const app = express();
 
@@ -42,17 +43,19 @@ app.route("/login")
     // User Login
     .post(function (req, res) {
         const email = req.body.email;
-        const password = md5(req.body.password);
+        const password = req.body.password;
 
         User.findOne({
             email: email,
-        }, function (err, user) {
+        }, function (err, foundUser) {
             if (!err) {
-                if (user && user.password === password) {
-                    res.render("secrets");
-                } else {
-                    res.send("Username or Password was incorrect");
-                }
+                bcrypt.compare(password, foundUser.password, function (err, result) {
+                    if (result === true) {
+                        res.render("secrets");
+                    } else if (result === false) {
+                        res.send("Incorrect login");
+                    }
+                });
             } else {
                 res.send(err);
             }
@@ -68,31 +71,32 @@ app.route("/register")
     // Add new user to database
     .post(function (req, res) {
         const email = req.body.email;
-        const password = md5(req.body.password);
+        const password = req.body.password;
 
-        const newUser = new User({
-            email: email,
-            password: password
+        // Hash password
+        bcrypt.hash(password, saltRounds, function (err, hash) {
+            const newUser = new User({
+                email: email,
+                password: hash
+            });
+            User.findOne({
+                email: newUser.email
+            }, function (err, foundUser) {
+                if (!err && !foundUser) {
+                    newUser.save(function (err) {
+                        if (!err) {
+                            res.render("secrets");
+                        } else {
+                            res.send(err);
+                        }
+                    });
+                } else if (!err && foundUser) {
+                    res.send("User Already Exists");
+                } else {
+                    res.send(err);
+                }
+            });
         });
-        User.findOne({
-            email: newUser.email
-        }, function (err, foundUser) {
-            if (!err && !foundUser) {
-                newUser.save(function (err) {
-                    if (!err) {
-                        res.render("secrets");
-                    } else {
-                        res.send(err);
-                    }
-                });
-            } else if (!err && foundUser) {
-                res.send("User Already Exists");
-            } else {
-                res.send(err);
-            }
-        });
-
-
     });
 
 
