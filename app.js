@@ -3,8 +3,9 @@ const express = require("express");
 const ejs = require("ejs");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const bcrypt = require("bcrypt"); // Hash module
-const saltRounds = 10;
+const session = require("express-session");
+const passport = require("passport");
+const passportLocalMongoose = require("passport-local-mongoose");
 
 const app = express();
 
@@ -14,52 +15,41 @@ app.use(bodyParser.urlencoded({
     extended: true
 }));
 
+// Setting up express-session
+app.use(session({
+    secret: "Some long dumb string.",
+    resave: false,
+    saveUninitialized: false
+}));
+
+// Setting up passport
+app.use(passport.initialize());
+app.use(passport.session());
+
 mongoose.connect("mongodb://localhost:27017/userDB", {
     useUnifiedTopology: true,
     useNewUrlParser: true,
     useFindAndModify: false
 });
+mongoose.set("useCreateIndex", true);
 
+// When using passport, schema MUST INCLUDE username FIELD EVEN WHEN USING AN EMAIL
 const userSchema = new mongoose.Schema({
-    email: String,
+    username: String,
     password: String
 });
-
+userSchema.plugin(passportLocalMongoose);
 
 const User = mongoose.model("User", userSchema);
+
+passport.use(User.createStrategy());
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
 
 ///// Home Page Route ////////////////////////////////////////
 app.route("/")
     .get(function (req, res) {
         res.render("home");
-    });
-
-///// Login Route ///////////////////////////////////////////
-app.route("/login")
-    .get(function (req, res) {
-        res.render("login");
-    })
-
-    // User Login
-    .post(function (req, res) {
-        const email = req.body.email;
-        const password = req.body.password;
-
-        User.findOne({
-            email: email,
-        }, function (err, foundUser) {
-            if (!err) {
-                bcrypt.compare(password, foundUser.password, function (err, result) {
-                    if (result === true) {
-                        res.render("secrets");
-                    } else if (result === false) {
-                        res.send("Incorrect login");
-                    }
-                });
-            } else {
-                res.send(err);
-            }
-        });
     });
 
 ///// Register Route ////////////////////////////////////////
@@ -70,33 +60,41 @@ app.route("/register")
 
     // Add new user to database
     .post(function (req, res) {
-        const email = req.body.email;
-        const password = req.body.password;
 
-        // Hash password
-        bcrypt.hash(password, saltRounds, function (err, hash) {
-            const newUser = new User({
-                email: email,
-                password: hash
-            });
-            User.findOne({
-                email: newUser.email
-            }, function (err, foundUser) {
-                if (!err && !foundUser) {
-                    newUser.save(function (err) {
-                        if (!err) {
-                            res.render("secrets");
-                        } else {
-                            res.send(err);
-                        }
-                    });
-                } else if (!err && foundUser) {
-                    res.send("User Already Exists");
-                } else {
-                    res.send(err);
-                }
-            });
+        User.register({
+            username: req.body.username
+        }, req.body.password, function (err, user) {
+            if (err) {
+                console.log(err);
+                res.redirect("/register");
+            } else {
+                passport.authenticate("local")(req, res, function () {
+                    res.redirect("/secrets");
+                })
+            }
         });
+
+    });
+
+
+///// Login Route ////////////////////////////////////////////
+app.route("/login")
+    .get(function (req, res) {
+        res.render("login");
+    })
+
+    // User Login
+    .post();
+
+
+///// Secrets Route ////////////////////////////////////////////
+app.route("/secrets")
+    .get(function (req, res) {
+        if (req.isAuthenticated()) {
+            res.render("secrets");
+        } else {
+            res.redirect("/login");
+        }
     });
 
 
