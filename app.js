@@ -113,6 +113,12 @@ app.route("/secrets")
         }
     });
 
+///// Logout Route ////////////////////////////////////////////
+app.get("/logout", function (req, res) {
+    req.logout();
+    res.redirect("/");
+});
+
 
 app.listen(process.env.PORT || 3000, function () {
     console.log("Server is now listening");
